@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FEC Election — Ballot Tally</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f5f5f5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+    color: #333;
+    margin-bottom: 0.3rem;
+    text-align: center;
+  }
+
+  .subtitle {
+    font-size: 0.95rem;
+    color: #888;
+    margin-bottom: 2rem;
+    text-align: center;
+  }
+
+  .buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+    max-width: 340px;
+  }
+
+  .vote-btn {
+    padding: 1.4rem;
+    border: none;
+    border-radius: 16px;
+    font-size: 1.5rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: transform 0.1s ease, opacity 0.1s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+
+  .vote-btn:active { transform: scale(0.97); opacity: 0.9; }
+
+  .btn-pizza { background: #FF6B6B; color: #fff; }
+  .btn-burger { background: #4ECDC4; color: #fff; }
+  .btn-writein { background: #F9C74F; color: #333; }
+
+  .btn-count {
+    background: rgba(255,255,255,0.3);
+    border-radius: 50px;
+    padding: 0.2rem 0.9rem;
+    font-size: 1.3rem;
+  }
+
+  .totals {
+    margin-top: 2rem;
+    background: #fff;
+    border-radius: 14px;
+    padding: 1rem 1.5rem;
+    width: 100%;
+    max-width: 340px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  }
+
+  .totals h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #aaa;
+    margin-bottom: 0.8rem;
+  }
+
+  .total-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 1rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid #f0f0f0;
+    color: #444;
+  }
+
+  .total-row:last-child { border-bottom: none; }
+  .total-row strong { color: #222; }
+
+  .reset-btn {
+    margin-top: 1.5rem;
+    background: none;
+    border: 1.5px solid #ddd;
+    border-radius: 8px;
+    padding: 0.6rem 1.5rem;
+    font-size: 0.9rem;
+    color: #999;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+  }
+
+  .reset-btn:hover { color: #e74c3c; border-color: #e74c3c; }
+
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: #fff;
+    padding: 0.6rem 1.5rem;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<h1>🗳️ Ballot Tally</h1>
+<p class="subtitle">Tap a button each time a ballot is dropped in</p>
+
+<div class="buttons">
+  <button class="vote-btn btn-pizza" onclick="addVote('pizza')">
+    🍕 Pizza
+    <span class="btn-count" id="btn-count-pizza">0</span>
+  </button>
+  <button class="vote-btn btn-burger" onclick="addVote('burger')">
+    🍔 Burgers
+    <span class="btn-count" id="btn-count-burger">0</span>
+  </button>
+  <button class="vote-btn btn-writein" onclick="addVote('writein')">
+    ✏️ Write-In
+    <span class="btn-count" id="btn-count-writein">0</span>
+  </button>
+</div>
+
+<div class="totals">
+  <h2>Current Totals</h2>
+  <div class="total-row"><span>🍕 Pizza</span><strong id="total-pizza">0</strong></div>
+  <div class="total-row"><span>🍔 Burgers</span><strong id="total-burger">0</strong></div>
+  <div class="total-row"><span>✏️ Write-In</span><strong id="total-writein">0</strong></div>
+  <div class="total-row"><span>Total Ballots</span><strong id="total-all">0</strong></div>
+</div>
+
+<button class="reset-btn" onclick="resetVotes()">Reset all votes</button>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── PASTE YOUR FIREBASE CONFIG HERE ──────────────────────────────────────
+  const firebaseConfig = {
+
+  apiKey: "AIzaSyB9GLAO-fR6sPn8NiH5pX7xz4twwhBjHng",
+
+  authDomain: "fec-kid-votes.firebaseapp.com",
+
+  databaseURL: "https://fec-kid-votes-default-rtdb.firebaseio.com",
+
+  projectId: "fec-kid-votes",
+
+  storageBucket: "fec-kid-votes.firebasestorage.app",
+
+  messagingSenderId: "22309061871",
+
+  appId: "1:22309061871:web:db63fbebef48832289871a"
+
+};
+
+  // ─────────────────────────────────────────────────────────────────────────
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  const votesRef = db.ref('votes');
+
+  let current = { pizza: 0, burger: 0, writein: 0 };
+
+  votesRef.on('value', (snap) => {
+    current = snap.val() || { pizza: 0, burger: 0, writein: 0 };
+    render();
+  });
+
+  function render() {
+    const { pizza, burger, writein } = current;
+    const total = pizza + burger + writein;
+    document.getElementById('btn-count-pizza').textContent = pizza;
+    document.getElementById('btn-count-burger').textContent = burger;
+    document.getElementById('btn-count-writein').textContent = writein;
+    document.getElementById('total-pizza').textContent = pizza;
+    document.getElementById('total-burger').textContent = burger;
+    document.getElementById('total-writein').textContent = writein;
+    document.getElementById('total-all').textContent = total;
+  }
+
+  function addVote(choice) {
+    const update = {};
+    update[choice] = (current[choice] || 0) + 1;
+    votesRef.update(update);
+    showToast(choice === 'pizza' ? '🍕 Pizza +1' : choice === 'burger' ? '🍔 Burger +1' : '✏️ Write-In +1');
+  }
+
+  function resetVotes() {
+    if (confirm('Reset all votes to zero?')) {
+      votesRef.set({ pizza: 0, burger: 0, writein: 0 });
+    }
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 1200);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FEC Mock Election — Live Results</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #1a1a2e;
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+
+  .header .seal {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .header h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #FFD700;
+    text-shadow: 0 0 20px rgba(255,215,0,0.3);
+  }
+
+  .header p {
+    font-size: 1.1rem;
+    color: #aaa;
+    margin-top: 0.4rem;
+  }
+
+  .total-badge {
+    background: rgba(255,215,0,0.15);
+    border: 2px solid #FFD700;
+    border-radius: 50px;
+    padding: 0.5rem 2rem;
+    font-size: 1.2rem;
+    color: #FFD700;
+    font-weight: 600;
+    margin-bottom: 2.5rem;
+    letter-spacing: 1px;
+  }
+
+  .candidates {
+    display: flex;
+    gap: 2rem;
+    width: 100%;
+    max-width: 900px;
+    align-items: flex-end;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .candidate-card {
+    flex: 1;
+    min-width: 220px;
+    max-width: 260px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 20px;
+    border: 2px solid rgba(255,255,255,0.1);
+    padding: 1.5rem 1.5rem 1.5rem;
+    text-align: center;
+    transition: transform 0.3s ease;
+  }
+
+  .candidate-card.leader {
+    border-color: #FFD700;
+    background: rgba(255,215,0,0.08);
+    transform: scale(1.04);
+  }
+
+  .candidate-card .emoji {
+    font-size: 3.5rem;
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  .candidate-card h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+    color: #fff;
+  }
+
+  .candidate-card .vote-count {
+    font-size: 3rem;
+    font-weight: 800;
+    line-height: 1;
+    margin: 0.5rem 0;
+  }
+
+  .candidate-card .vote-label {
+    font-size: 0.85rem;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 1rem;
+  }
+
+  .bar-track {
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    height: 14px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .pizza .vote-count { color: #FF6B6B; }
+  .pizza .bar-fill { background: #FF6B6B; }
+
+  .burger .vote-count { color: #4ECDC4; }
+  .burger .bar-fill { background: #4ECDC4; }
+
+  .writein .vote-count { color: #FFD700; }
+  .writein .bar-fill { background: #FFD700; }
+
+  .pct {
+    font-size: 0.9rem;
+    color: #aaa;
+  }
+
+  .winner-banner {
+    display: none;
+    margin-top: 2rem;
+    background: rgba(255,215,0,0.15);
+    border: 2px solid #FFD700;
+    border-radius: 16px;
+    padding: 1rem 2.5rem;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #FFD700;
+    text-align: center;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  .live-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    background: #4CAF50;
+    border-radius: 50%;
+    margin-right: 8px;
+    animation: blink 1.2s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+
+  .footer {
+    margin-top: 2rem;
+    font-size: 0.85rem;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="seal">🗳️</div>
+  <h1>FEC TAKE YOUR KIDS TO WORK DAY</h1>
+  <p>Official Mock Election — Live Results</p>
+</div>
+
+<div class="total-badge">
+  <span class="live-dot"></span>
+  <span id="total-votes">0</span> VOTES CAST
+</div>
+
+<div class="candidates">
+  <div class="candidate-card pizza" id="card-pizza">
+    <span class="emoji">🍕</span>
+    <h2>Pizza</h2>
+    <div class="vote-count" id="count-pizza">0</div>
+    <div class="vote-label">votes</div>
+    <div class="bar-track"><div class="bar-fill" id="bar-pizza" style="width:0%"></div></div>
+    <div class="pct" id="pct-pizza">0%</div>
+  </div>
+
+  <div class="candidate-card burger" id="card-burger">
+    <span class="emoji">🍔</span>
+    <h2>Burgers</h2>
+    <div class="vote-count" id="count-burger">0</div>
+    <div class="vote-label">votes</div>
+    <div class="bar-track"><div class="bar-fill" id="bar-burger" style="width:0%"></div></div>
+    <div class="pct" id="pct-burger">0%</div>
+  </div>
+
+  <div class="candidate-card writein" id="card-writein">
+    <span class="emoji">✏️</span>
+    <h2>Write-In</h2>
+    <div class="vote-count" id="count-writein">0</div>
+    <div class="vote-label">votes</div>
+    <div class="bar-track"><div class="bar-fill" id="bar-writein" style="width:0%"></div></div>
+    <div class="pct" id="pct-writein">0%</div>
+  </div>
+</div>
+
+<div class="winner-banner" id="winner-banner"></div>
+
+<div class="footer">Results update in real time as ballots are submitted</div>
+
+<script>
+  // ── PASTE YOUR FIREBASE CONFIG HERE ──────────────────────────────────────
+const firebaseConfig = {
+
+  apiKey: "AIzaSyB9GLAO-fR6sPn8NiH5pX7xz4twwhBjHng",
+
+  authDomain: "fec-kid-votes.firebaseapp.com",
+
+  databaseURL: "https://fec-kid-votes-default-rtdb.firebaseio.com",
+
+  projectId: "fec-kid-votes",
+
+  storageBucket: "fec-kid-votes.firebasestorage.app",
+
+  messagingSenderId: "22309061871",
+
+  appId: "1:22309061871:web:db63fbebef48832289871a"
+
+};
+
+  // ─────────────────────────────────────────────────────────────────────────
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  const votesRef = db.ref('votes');
+
+  function update(data) {
+    const pizza = data.pizza || 0;
+    const burger = data.burger || 0;
+    const writein = data.writein || 0;
+    const total = pizza + burger + writein;
+
+    document.getElementById('total-votes').textContent = total;
+    document.getElementById('count-pizza').textContent = pizza;
+    document.getElementById('count-burger').textContent = burger;
+    document.getElementById('count-writein').textContent = writein;
+
+    const pct = (n) => total > 0 ? Math.round((n / total) * 100) : 0;
+    document.getElementById('bar-pizza').style.width = pct(pizza) + '%';
+    document.getElementById('bar-burger').style.width = pct(burger) + '%';
+    document.getElementById('bar-writein').style.width = pct(writein) + '%';
+    document.getElementById('pct-pizza').textContent = pct(pizza) + '%';
+    document.getElementById('pct-burger').textContent = pct(burger) + '%';
+    document.getElementById('pct-writein').textContent = pct(writein) + '%';
+
+    ['pizza','burger','writein'].forEach(c => {
+      document.getElementById('card-' + c).classList.remove('leader');
+    });
+
+    if (total > 0) {
+      const max = Math.max(pizza, burger, writein);
+      const leaders = [];
+      if (pizza === max) leaders.push('pizza');
+      if (burger === max) leaders.push('burger');
+      if (writein === max) leaders.push('writein');
+      leaders.forEach(c => document.getElementById('card-' + c).classList.add('leader'));
+
+      const banner = document.getElementById('winner-banner');
+      const names = { pizza: '🍕 Pizza', burger: '🍔 Burgers', writein: '✏️ Write-In' };
+      if (leaders.length === 1) {
+        banner.style.display = 'block';
+        banner.textContent = '🏆 ' + names[leaders[0]] + ' is in the lead!';
+      } else {
+        banner.style.display = 'block';
+        banner.textContent = "It's a tie!";
+      }
+    }
+  }
+
+  votesRef.on('value', (snap) => {
+    update(snap.val() || { pizza: 0, burger: 0, writein: 0 });
+  });
+</script>
+</body>
+</html>
