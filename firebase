@@ -1,0 +1,18 @@
+  // ── PASTE YOUR FIREBASE CONFIG HERE ──────────────────────────────────────
+  const firebaseConfig = {
+
+  apiKey: "AIzaSyB9GLAO-fR6sPn8NiH5pX7xz4twwhBjHng",
+
+  authDomain: "fec-kid-votes.firebaseapp.com",
+
+  databaseURL: "https://fec-kid-votes-default-rtdb.firebaseio.com",
+
+  projectId: "fec-kid-votes",
+
+  storageBucket: "fec-kid-votes.firebasestorage.app",
+
+  messagingSenderId: "22309061871",
+
+  appId: "1:22309061871:web:db63fbebef48832289871a"
+
+};
